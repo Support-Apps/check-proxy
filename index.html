@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>בדיקת Proxy 2</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #FFF0F3; }
+        input { width: 100%; padding: 15px; margin: 10px 0; font-size: 16px; direction: ltr; box-sizing: border-box; border: 2px solid #FC94AF; border-radius: 10px; }
+        button { width: 100%; padding: 15px; font-size: 18px; background: #FC94AF; color: white; border: none; border-radius: 10px; margin: 5px 0; }
+        #result { margin-top: 20px; padding: 15px; background: white; border-radius: 10px; max-height: 400px; overflow: auto; font-size: 14px; }
+        .success { color: green; margin: 8px 0; font-weight: bold; }
+        .error { color: red; margin: 8px 0; }
+        .testing { color: orange; margin: 8px 0; }
+        .info { color: blue; margin: 8px 0; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h2>בדיקת Proxy מורחבת</h2>
+    <input type="url" id="url" placeholder="הדבק קישור לבדיקה" value="https://www.google.com">
+    <button id="testBtn">בדוק</button>
+    <div id="result"></div>
+    
+    <script>
+        var proxies = [
+            { name: 'AllOrigins GET', fn: function(u) { return 'https://api.allorigins.win/get?url=' + encodeURIComponent(u); }, type: 'json', field: 'contents' },
+            { name: 'AllOrigins Raw', fn: function(u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }, type: 'text' },
+            { name: 'CorsProxy.io', fn: function(u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }, type: 'text' },
+            { name: 'Cors.lol', fn: function(u) { return 'https://api.cors.lol/?url=' + encodeURIComponent(u); }, type: 'text' },
+            { name: 'CodeTabs', fn: function(u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); }, type: 'text' },
+            { name: 'ThingProxy', fn: function(u) { return 'https://thingproxy.freeboard.io/fetch/' + u; }, type: 'text' },
+            { name: 'Corsanywhere', fn: function(u) { return 'https://cors-anywhere.herokuapp.com/' + u; }, type: 'text' },
+            { name: 'Yacdn', fn: function(u) { return 'https://yacdn.org/proxy/' + u; }, type: 'text' }
+        ];
+        
+        var resultDiv = document.getElementById('result');
+        
+        function log(msg, type) {
+            resultDiv.innerHTML += '<div class="' + type + '">' + msg + '</div>';
+            resultDiv.scrollTop = resultDiv.scrollHeight;
+        }
+        
+        async function testOne(proxy, url) {
+            log('⏳ ' + proxy.name + '...', 'testing');
+            try {
+                var controller = new AbortController();
+                var timeoutId = setTimeout(function() { controller.abort(); }, 12000);
+                
+                var resp = await fetch(proxy.fn(url), {
+                    signal: controller.signal,
+                    headers: { 'Accept': '*/*' }
+                });
+                clearTimeout(timeoutId);
+                
+                if (!resp.ok) {
+                    log('❌ ' + proxy.name + ': HTTP ' + resp.status, 'error');
+                    return null;
+                }
+                
+                var text;
+                if (proxy.type === 'json') {
+                    var json = await resp.json();
+                    text = json[proxy.field] || '';
+                } else {
+                    text = await resp.text();
+                }
+                
+                if (text && text.length > 200 && text.indexOf('<') > -1) {
+                    log('✅ ' + proxy.name + ' - עובד! (' + text.length + ' תווים)', 'success');
+                    return proxy.name;
+                } else {
+                    log('❌ ' + proxy.name + ': תוכן לא תקין (' + text.length + ')', 'error');
+                    return null;
+                }
+            } catch(e) {
+                log('❌ ' + proxy.name + ': ' + e.message, 'error');
+                return null;
+            }
+        }
+        
+        document.getElementById('testBtn').onclick = async function() {
+            var url = document.getElementById('url').value.trim();
+            if (!url) { alert('הדבק קישור'); return; }
+            if (!url.startsWith('http')) url = 'https://' + url;
+            
+            resultDiv.innerHTML = '';
+            log('בודק: ' + url, 'info');
+            log('מיקום הקובץ: ' + window.location.href, 'info');
+            log('---', 'info');
+            
+            var working = [];
+            for (var i = 0; i < proxies.length; i++) {
+                var result = await testOne(proxies[i], url);
+                if (result) working.push(result);
+            }
+            
+            log('---', 'info');
+            if (working.length > 0) {
+                log('🎉 עובדים: ' + working.join(', '), 'success');
+            } else {
+                log('😞 אף proxy לא עבד', 'error');
+            }
+        };
+    </script>
+</body>
+</html>
